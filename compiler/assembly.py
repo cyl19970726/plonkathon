@@ -136,9 +136,9 @@ def eq_to_assembly(eq: str) -> AssemblyEqn:
         # Gather list of variables used in the expression
         variables = []
         for t in tokens[2:]:
-            var = t.lstrip("-")
+            var = t.lstrip("-") # 返回截掉字符串左边的空格或指定字符后生成的新字符串。
             if is_valid_variable_name(var) and var not in variables:
-                variables.append(var)
+                variables.append(var) # 添加一个有效的变量名
         # Construct the list of allowed coefficients
         allowed_coeffs = variables + ["", "$output_coeff"]
         if len(variables) == 0:
@@ -155,7 +155,7 @@ def eq_to_assembly(eq: str) -> AssemblyEqn:
             if key not in allowed_coeffs:
                 raise Exception("Disallowed multiplication: {}".format(key))
         # Return output
-        wires = variables + [None] * (2 - len(variables)) + [out]
+        wires = variables + [None] * (2 - len(variables)) + [out] # ['a', 'b', 'c']
         return AssemblyEqn(GateWires(wires[0], wires[1], wires[2]), coeffs)
     elif tokens[1] == "public":
         return AssemblyEqn(

@@ -13,7 +13,7 @@ class Scalar(Field):
     # Gets the first root of unity of a given group order
     @classmethod
     def root_of_unity(cls, group_order: int):
-        return Scalar(5) ** ((cls.field_modulus - 1) // group_order)
+        return Scalar(5) ** ((cls.field_modulus - 1) // group_order) # [1,5,12,8]  (13 - 1)/group_order = 
 
     # Gets the full list of roots of unity of a given group order
     @classmethod
@@ -22,6 +22,17 @@ class Scalar(Field):
         while len(o) < group_order:
             o.append(o[-1] * o[1])
         return o
+
+# Gets the first root of unity of a given group order
+def get_root_of_unity(group_order):
+    return Scalar(5) ** ((b.curve_order - 1) // group_order)
+
+# Gets the full list of roots of unity of a given group order
+def get_roots_of_unity(group_order):
+    o = [Scalar(1), get_root_of_unity(group_order)]
+    while len(o) < group_order:
+        o.append(o[-1] * o[1]) # w^0 , w^1 , w^2 , w^3 , w^4 ... , w^n 
+    return o
 
 
 Base = NewType("Base", b.FQ)

@@ -1,6 +1,6 @@
 from utils import *
 import py_ecc.bn128 as b
-from curve import ec_lincomb, G1Point, G2Point
+from curve import ec_lincomb, G1Point, G2Point,get_root_of_unity
 from compiler.program import CommonPreprocessedInput
 from verifier import VerificationKey
 from dataclasses import dataclass
@@ -49,8 +49,8 @@ class Setup(object):
             if v == target:
                 break
             pos += 1
-        print("Detected start of G2 side at byte {}".format(pos))
-        X2_encoding = contents[pos + 32 * 4 : pos + 32 * 8]
+        print("Detected start of G2 side at byte {}".format(pos)) # Know the G2 pos at contents 
+        X2_encoding = contents[pos + 32 * 4 : pos + 32 * 8] # 128byte 
         X2_values = [
             b.FQ(int.from_bytes(X2_encoding[i : i + 32], "little")) / factor
             for i in range(0, 128, 32)
@@ -67,11 +67,37 @@ class Setup(object):
         assert values.basis == Basis.LAGRANGE
 
         # Run inverse FFT to convert values from Lagrange basis to monomial basis
+        coeffs = values.ifft()
+        if len(coeffs.values) > len(self.powers_of_x):
+            raise Exception("Not eough powers in setup")
+        return ec_lincomb([(s,x) for s,x in zip(self.powers_of_x, coeffs.values)])
+
         # Optional: Check values size does not exceed maximum power setup can handle
+        
         # Compute linear combination of setup with values
-        return NotImplemented
 
     # Generate the verification key for this program with the given setup
     def verification_key(self, pk: CommonPreprocessedInput) -> VerificationKey:
         # Create the appropriate VerificationKey object
-        return NotImplemented
+
+        # evaluation to coefficients 
+        return VerificationKey(
+            # gate selector
+            pk.group_order,
+            self.commit(pk.QM),
+            self.commit(pk.QL), # L= [f_inner(0) , f_inner(2) .... ,f_inner(6) ]
+            self.commit(pk.QR),
+            self.commit(pk.QO),
+            self.commit(pk.QC),
+            # copy constraint 
+            self.commit(pk.S1),
+            self.commit(pk.S2),
+            self.commit(pk.S3),
+            # X_2
+            self.X2,
+            # nth root of unity (i.e. ω^1), where n is the program's group order.
+            get_root_of_unity(pk.group_order)
+        )
+
+    
+    

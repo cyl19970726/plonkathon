@@ -1,11 +1,17 @@
 from compiler.program import Program, CommonPreprocessedInput
 from utils import *
+from enum import Enum
+from curve import get_roots_of_unity
 from setup import *
 from typing import Optional
 from dataclasses import dataclass
 from transcript import Transcript, Message1, Message2, Message3, Message4, Message5
 from poly import Polynomial, Basis
 
+class Column(Enum):
+    LEFT = 1
+    RIGHT = 2
+    OUTPUT = 3
 
 @dataclass
 class Proof:
@@ -54,6 +60,9 @@ class Prover:
 
         # Collect fixed and public information
         # FIXME: Hash pk and PI into transcript
+
+        # witness = {"a": 3, "b": 4, "c": 12, "d": 5, "e": 60}
+        # public_vars = ["e"]
         public_vars = self.program.get_public_assignments()
         PI = Polynomial(
             [Scalar(-witness[v]) for v in public_vars]
@@ -98,6 +107,29 @@ class Prover:
         # - A_values: witness[program.wires()[i].L]
         # - B_values: witness[program.wires()[i].R]
         # - C_values: witness[program.wires()[i].O]
+        A_values = [Scalar(0) for _ in range(group_order)]
+        B_values = [Scalar(0) for _ in range(group_order)]
+        C_values = [Scalar(0) for _ in range(group_order)]
+
+        for i in range(len(program.wires())):    
+            A_values[i] = Scalar(witness[program.wires()[i].L])
+            B_values[i] = Scalar(witness[program.wires()[i].R])
+            C_values[i] = Scalar(witness[program.wires()[i].O])
+        
+        A_evals = Polynomial(list(A_values),Basis.LAGRANGE)
+        B_evals = Polynomial(list(B_values),Basis.LAGRANGE)
+        C_evals = Polynomial(list(C_values),Basis.LAGRANGE)
+
+        A_pt = self.setup.commit(A_evals)
+        B_pt = self.setup.commit(B_evals)
+        C_pt = self.setup.commit(C_evals)
+
+        # self.A = A_evals.evals_to_coeffs()
+        # self.B = B_evals.evals_to_coeffs()
+        # self.C = C_evals.evals_to_coeffs()
+        self.A = A_evals
+        self.B = B_evals
+        self.C = C_evals
 
         # Construct A, B, C Lagrange interpolation polynomials for
         # A_values, B_values, C_values
@@ -116,6 +148,9 @@ class Prover:
         )
 
         # Return a_1, b_1, c_1
+        a_1 = A_pt
+        b_1 = B_pt
+        c_1 = C_pt
         return Message1(a_1, b_1, c_1)
 
     def round_2(self) -> Message2:
@@ -127,11 +162,33 @@ class Prover:
         #
         # Note the convenience function:
         #       self.rlc(val1, val2) = val_1 + self.beta * val_2 + gamma
-
         # Check that the last term Z_n = 1
-        assert Z_values.pop() == 1
+
+    
+        SL = self.pk.S1
+        SR = self.pk.S2
+        SO = self.pk.S3
+
+        Z_values = [Scalar(1)] # Z_0 = 1 
+        roots_of_unity = Scalar.roots_of_unity(group_order)
+        for i in range(group_order):
+            # Z_{i+1} = Z_i * (f(i)) / (g(i))
+            # Z_1 = Z_0 * (f(1)) / (g(1))
+            # Z_n = Z_{n-1} * (f(n-1)) / (g(n-1))
+            Z_values.append(
+                Z_values[-1] * #  Z_values[-1] respresents Z_i 
+                (self.A.values[i] + self.beta * 1 * roots_of_unity[i] + self.gamma) * 
+                (self.B.values[i] + self.beta * 2 * roots_of_unity[i] + self.gamma) * 
+                (self.C.values[i] + self.beta * 3 * roots_of_unity[i] + self.gamma) /
+                (self.A.values[i] + self.beta * SL.values[i] + self.gamma) /  # you can view code at utils.Cell::label
+                (self.B.values[i] + self.beta * SR.values[i] + self.gamma) / 
+                (self.C.values[i] + self.beta * SO.values[i] + self.gamma)
+            )
+        # Sanity-check Z_n == 1 
+        assert Z_values.pop() == 1 
 
         # Sanity-check that Z was computed correctly
+        # (f(X) / g(X)) * z(X) == z(Xw)   
         for i in range(group_order):
             assert (
                 self.rlc(self.A.values[i], roots_of_unity[i])
@@ -146,8 +203,9 @@ class Prover:
             ] == 0
 
         # Construct Z, Lagrange interpolation polynomial for Z_values
+        self.Z = Polynomial(Z_values,Basis.LAGRANGE)
         # Cpmpute z_1 commitment to Z polynomial
-
+        z_1 = self.Z.evals_to_coeffs().coeffs_to_point(self.setup.powers_of_x)
         # Return z_1
         return Message2(z_1)
 
@@ -156,31 +214,49 @@ class Prover:
         setup = self.setup
 
         # Compute the quotient polynomial
-
+        
         # List of roots of unity at 4x fineness, i.e. the powers of µ
         # where µ^(4n) = 1
+        quarter_roots = Scalar.roots_of_unity(self.group_order * 4)
 
         # Using self.fft_expand, move A, B, C into coset extended Lagrange basis
-
+        A_big = self.fft_expand(self.A)
+        B_big = self.fft_expand(self.B)
+        C_big = self.fft_expand(self.C)
         # Expand public inputs polynomial PI into coset extended Lagrange
-
+        PI_big = self.fft_expand(self.PI)
         # Expand selector polynomials pk.QL, pk.QR, pk.QM, pk.QO, pk.QC
         # into the coset extended Lagrange basis
-
+        QL_big = self.fft_expand(self.pk.QL)
+        QR_big = self.fft_expand(self.pk.QR)
+        QM_big = self.fft_expand(self.pk.QM)
+        QO_big = self.fft_expand(self.pk.QO)
+        QC_big = self.fft_expand(self.pk.QC)
         # Expand permutation grand product polynomial Z into coset extended
         # Lagrange basis
-
+        Z_big = self.fft_expand(self.Z)
         # Expand shifted Z(ω) into coset extended Lagrange basis
-
+        Z_n_plus_1_valuse = Z_big.values[4:] + Z_big.values[:4]
+        Z_shifted_big = Polynomial(Z_n_plus_1_valuse,Basis.LAGRANGE)
         # Expand permutation polynomials pk.S1, pk.S2, pk.S3 into coset
         # extended Lagrange basis
-
+        S1_big = self.fft_expand(self.pk.S1)
+        S2_big = self.fft_expand(self.pk.S2)
+        S3_big = self.fft_expand(self.pk.S3)
         # Compute Z_H = X^N - 1, also in evaluation form in the coset
+        ZH_big = Polynomial(
+            [
+                ((Scalar(r) * self.fft_cofactor) ** group_order - 1)
+                for r in quarter_roots
+            ],
+            Basis.LAGRANGE
+        )
 
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
 
         # Expand L0 into the coset extended Lagrange basis
+        # L0(0) = 1 , L0(others) = 0
         L0_big = self.fft_expand(
             Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
         )
@@ -201,6 +277,49 @@ class Prover:
         #    (Z - 1) * L0 = 0
         #    L0 = Lagrange polynomial, equal at all roots of unity except 1
 
+        
+        # for i in range(4 * group_order):
+        #     assert (
+        #         A_big.values[i] * QL_big.values[i] + B_big.values[i] * QR_big.values[i] + A_big.values[i] * B_big.values[i] * QM_big.values[i] +
+        #         C_big.values[i] * QO_big.values[i] + PI_big.values[i] + QC_big.values[i] == 0
+        #     )
+
+        # gates_poly = [ 
+        #         A_big[i] * QL_big[i] +
+        #         B_big[i] * QR_big[i] +
+        #         A_big[i] * B_big[i] * QM_big[i] +
+        #         C_big[i] * QO_big[i] + 
+        #         PI_big[i] +
+        #         QC_big[i]
+        #         for i in range(self.group_order * 4)
+        #         ]
+
+        QUOT_big_points = [
+                ((
+                    A_big.values[i] * QL_big.values[i] +
+                    B_big.values[i] * QR_big.values[i] +
+                    A_big.values[i] * B_big.values[i] * QM_big.values[i] +
+                    C_big.values[i] * QO_big.values[i] + 
+                    PI_big.values[i] +
+                    QC_big.values[i]
+                )  +
+                (
+                    (A_big.values[i] + self.beta * 1 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
+                    (B_big.values[i] + self.beta * 2 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
+                    (C_big.values[i] + self.beta * 3 * self.fft_cofactor * quarter_roots[i] + self.gamma)
+                ) * self.alpha * Z_big.values[i] - 
+                (
+                    (A_big.values[i] + self.beta * S1_big.values[i] + self.gamma) *
+                    (B_big.values[i] + self.beta * S2_big.values[i] + self.gamma) *
+                    (C_big.values[i] + self.beta * S3_big.values[i] + self.gamma)
+                ) * self.alpha * Z_shifted_big.values[i] + 
+                (
+                    (Z_big.values[i]-1) * L0_big.values[i] *  self.alpha ** 2
+                )) / ZH_big.values[i] 
+            for i in range(self.group_order * 4)
+        ]
+        
+        QUOT_big = Polynomial(QUOT_big_points,Basis.LAGRANGE)
         # Sanity check: QUOT has degree < 3n
         assert (
             self.expanded_evals_to_coeffs(QUOT_big).values[-group_order:]
@@ -208,20 +327,27 @@ class Prover:
         )
         print("Generated the quotient polynomial")
 
+        QUOT_big_coeffs = self.expanded_evals_to_coeffs(QUOT_big)
+        T1 =  Polynomial(QUOT_big_coeffs.values[:group_order],QUOT_big_coeffs.basis).fft() # evaluation points polynomial
+        T2 =  Polynomial(QUOT_big_coeffs.values[group_order: 2 * group_order],QUOT_big_coeffs.basis).fft() # evaluation points polynomial
+        T3 =  Polynomial(QUOT_big_coeffs.values[2 * group_order:3 * group_order],QUOT_big_coeffs.basis).fft() # evaluation points polynomial
+        
         # Split up T into T1, T2 and T3 (needed because T has degree 3n - 4, so is
         # too big for the trusted setup)
 
         # Sanity check that we've computed T1, T2, T3 correctly
         assert (
-            T1.barycentric_eval(fft_cofactor)
-            + T2.barycentric_eval(fft_cofactor) * fft_cofactor**group_order
-            + T3.barycentric_eval(fft_cofactor) * fft_cofactor ** (group_order * 2)
+            T1.barycentric_eval(self.fft_cofactor)
+            + T2.barycentric_eval(self.fft_cofactor) * self.fft_cofactor ** group_order
+            + T3.barycentric_eval(self.fft_cofactor) * self.fft_cofactor ** (group_order * 2)
         ) == QUOT_big.values[0]
 
         print("Generated T1, T2, T3 polynomials")
 
         # Compute commitments t_lo_1, t_mid_1, t_hi_1 to T1, T2, T3 polynomials
-
+        t_lo_1 = T1.evals_to_coeffs().coeffs_to_point(self.setup.powers_of_x)
+        t_mid_1 = T2.evals_to_coeffs().coeffs_to_point(self.setup.powers_of_x)
+        t_hi_1 = T3.evals_to_coeffs().coeffs_to_point(self.setup.powers_of_x)
         # Return t_lo_1, t_mid_1, t_hi_1
         return Message3(t_lo_1, t_mid_1, t_hi_1)
 

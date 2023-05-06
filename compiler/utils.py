@@ -57,4 +57,5 @@ def get_product_key(key1, key2):
 
 
 def is_valid_variable_name(name: str) -> bool:
+    #                         isalnum() 方法检测字符串是否由字母和数字组成
     return len(name) > 0 and name.isalnum() and name[0] not in "0123456789"

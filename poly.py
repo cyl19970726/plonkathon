@@ -1,6 +1,5 @@
-from curve import Scalar
+from curve import Scalar , ec_lincomb
 from enum import Enum
-
 
 class Basis(Enum):
     LAGRANGE = 1
@@ -146,6 +145,16 @@ class Polynomial:
 
     def ifft(self):
         return self.fft(True)
+    
+    def evals_to_coeffs(self):
+        return self.ifft()
+    
+    def coeffs_to_point(self, power_list_for_point):
+        assert self.basis == Basis.MONOMIAL
+
+        if len(self.values) > len(power_list_for_point):
+            raise Exception("Not eough powers in setup")
+        return ec_lincomb([(s,x) for s,x in zip(power_list_for_point, self.values)])
 
     # Converts a list of evaluations at [1, w, w**2... w**(n-1)] to
     # a list of evaluations at

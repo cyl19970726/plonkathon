@@ -30,6 +30,7 @@ class CommonPreprocessedInput:
     S3: Polynomial
 
 
+
 class Program:
     constraints: list[AssemblyEqn]
     group_order: int
@@ -38,7 +39,11 @@ class Program:
         if len(constraints) > group_order:
             raise Exception("Group order too small")
         assembly = [eq_to_assembly(constraint) for constraint in constraints]
-        self.constraints = assembly
+        # a public                     (['a', None, None], {'a': -1, "$output_coeff": 0, "$public": True}])
+        # a === 9                      ([None, None, 'a'], {'': 9})
+        # b <== a * c                  (['a', 'c', 'b'], {'a*c': 1})
+        # d <== a * c - 45 * a + 987   (['a', 'c', 'd'], {'a*c': 1, 'a': -45, '': 987})
+        self.constraints = assembly 
         self.group_order = group_order
 
     def common_preprocessed_input(self) -> CommonPreprocessedInput:
@@ -72,8 +77,8 @@ class Program:
         # where that variable is used
         variable_uses: dict[Optional[str], Set[Cell]] = {None: set()}
         for row, constraint in enumerate(self.constraints):
-            for column, value in zip(Column.variants(), constraint.wires.as_list()):
-                if value not in variable_uses:
+            for column, value in zip(Column.variants(), constraint.wires.as_list()): # zip((1,2,3) ("a", "b","c")) => [(1,"a") ,(2,"b") ,(3, "c") ] 
+                if value not in variable_uses: # value = "a"
                     variable_uses[value] = set()
                 variable_uses[value].add(Cell(column, row))
 
@@ -97,13 +102,16 @@ class Program:
             Column.OUTPUT: [Scalar(0)] * self.group_order,
         }
 
+        # variable_uses["a"] = (1,1) (1,3) (2,4) (3,5) (column, row)
         for _, uses in variable_uses.items():
-            sorted_uses = sorted(uses)
-            for i, cell in enumerate(sorted_uses):
+            sorted_uses = sorted(uses) 
+            for i, cell in enumerate(sorted_uses): # variable_uses["a"] = (1,1) (1,3) (2,4) (3,5) (column, row)
                 next_i = (i + 1) % len(sorted_uses)
                 next_column = sorted_uses[next_i].column
                 next_row = sorted_uses[next_i].row
-                S_values[next_column][next_row] = cell.label(self.group_order)
+                # S[1][3] = Scalar.roots_of_unity(group_order)[3] * 1  ==> 
+                # S[next_column][next_row] = Scalar.roots_of_unity(group_order)[self.row] * self.column.value
+                S_values[next_column][next_row] = cell.label(self.group_order) 
 
         S = {}
         S[Column.LEFT] = Polynomial(S_values[Column.LEFT], Basis.LAGRANGE)
