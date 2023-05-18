@@ -166,7 +166,7 @@ class Polynomial:
         assert self.basis == Basis.LAGRANGE
         group_order = len(self.values)
         x_powers = self.ifft().values # evaltions => coefficients
-        # x_横坐标 x 系数 = y , 后面补上3 order 的0，以便下个操作执行fft()
+        # offset x 系数[i]  , 后面补上3 order 的0，以便下个操作执行fft()
         x_powers = [(offset**i * x) for i, x in enumerate(x_powers)] + [Scalar(0)] * (
             group_order * 3
         )

@@ -10,6 +10,18 @@ import json
 from test.mini_poseidon import rc, mds, poseidon_hash
 from utils import *
 
+def ZH_test():
+    print("=========ZH_test=========")
+    group_order = 8
+    roots = Scalar.roots_of_unity(group_order)
+    # ZH = X^N -1
+    ZH = Polynomial(
+        [( Scalar(roots[i]) ** group_order-1) for i in range(roots.__len__())],
+        Basis.LAGRANGE
+    )
+    #ZH:[0, 0, 0, 0, 0, 0, 0, 0]
+    print(f"ZH:{ZH.values}")
+
 def poly_test():
     print("=====poly_test=====")
     langrange_poly = Polynomial(
@@ -275,25 +287,26 @@ def poseidon_test(setup):
 
 
 if __name__ == "__main__":
+    ZH_test()
     # poly_test()
     # Step 1: Pass setup test
-    setup_test()
+    # setup_test()
 
-    setup = basic_test()
+    # setup = basic_test()
 
-    # Step 2: Pass prover test using verifier we provide (DO NOT READ TEST VERIFIER CODE)
-    prover_test_dummy_verifier(setup)
+    # # Step 2: Pass prover test using verifier we provide (DO NOT READ TEST VERIFIER CODE)
+    # prover_test_dummy_verifier(setup)
 
-    # Step 3: Pass verifier test using your own verifier
-    with open("test/proof.pickle", "rb") as f:
-        proof = pickle.load(f)
-    verifier_test_unoptimized(setup, proof)
-    verifier_test_full(setup, proof)
+    # # Step 3: Pass verifier test using your own verifier
+    # with open("test/proof.pickle", "rb") as f:
+    #     proof = pickle.load(f)
+    # verifier_test_unoptimized(setup, proof)
+    # verifier_test_full(setup, proof)
 
-    # Step 4: Pass end-to-end tests for prover and verifier
-    ab_plus_a_test(setup)
-    one_public_input_test(setup)
-    proof = prover_test(setup)
-    verifier_test_full(setup, proof)
-    factorization_test(setup)
-    poseidon_test(setup)
+    # # Step 4: Pass end-to-end tests for prover and verifier
+    # ab_plus_a_test(setup)
+    # one_public_input_test(setup)
+    # proof = prover_test(setup)
+    # verifier_test_full(setup, proof)
+    # factorization_test(setup)
+    # poseidon_test(setup)

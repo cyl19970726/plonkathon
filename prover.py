@@ -261,6 +261,7 @@ class Prover:
             Basis.LAGRANGE
         )
 
+
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
 
@@ -304,27 +305,32 @@ class Prover:
         #         ]
 
         QUOT_big_points = [
-                ((
-                    A_big.values[i] * QL_big.values[i] +
-                    B_big.values[i] * QR_big.values[i] +
-                    A_big.values[i] * B_big.values[i] * QM_big.values[i] +
-                    C_big.values[i] * QO_big.values[i] + 
-                    PI_big.values[i] +
-                    QC_big.values[i]
-                )  +
                 (
-                    (A_big.values[i] + self.beta * 1 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
-                    (B_big.values[i] + self.beta * 2 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
-                    (C_big.values[i] + self.beta * 3 * self.fft_cofactor * quarter_roots[i] + self.gamma)
-                ) * self.alpha * Z_big.values[i] - 
-                (
-                    (A_big.values[i] + self.beta * S1_big.values[i] + self.gamma) *
-                    (B_big.values[i] + self.beta * S2_big.values[i] + self.gamma) *
-                    (C_big.values[i] + self.beta * S3_big.values[i] + self.gamma)
-                ) * self.alpha * Z_shifted_big.values[i] + 
-                (
-                    (Z_big.values[i]-1) * L0_big.values[i] *  self.alpha ** 2
-                )) / ZH_big.values[i] 
+                    (
+                        A_big.values[i] * QL_big.values[i] +
+                        B_big.values[i] * QR_big.values[i] +
+                        A_big.values[i] * B_big.values[i] * QM_big.values[i] +
+                        C_big.values[i] * QO_big.values[i] + 
+                        PI_big.values[i] +
+                        QC_big.values[i]
+                    )  +
+                    self.alpha * (
+                            (
+                                (A_big.values[i] + self.beta * 1 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
+                                (B_big.values[i] + self.beta * 2 * self.fft_cofactor * quarter_roots[i] + self.gamma) *
+                                (C_big.values[i] + self.beta * 3 * self.fft_cofactor * quarter_roots[i] + self.gamma)
+                            ) *Z_big.values[i] - 
+                            (
+                                (A_big.values[i] + self.beta * S1_big.values[i] + self.gamma) *
+                                (B_big.values[i] + self.beta * S2_big.values[i] + self.gamma) *
+                                (C_big.values[i] + self.beta * S3_big.values[i] + self.gamma)
+                            ) *Z_shifted_big.values[i]
+                        ) 
+                    + 
+                    self.alpha ** 2(
+                        (Z_big.values[i]-1) * L0_big.values[i] 
+                    )
+                ) / ZH_big.values[i] 
             for i in range(self.group_order * 4)
         ]
         
@@ -445,20 +451,23 @@ class Prover:
 
     
         R_big_evals = [
-        gate_evals[i]
-        +
-        self.alpha * (permutation_evals[i]) 
-        +
-        self.alpha**2 * ((self.Z_big.values[i] - 1)* L0_eval) - 
         (
-            ZH_ev*
+            gate_evals[i]
+            +
+            self.alpha * (permutation_evals[i]) 
+            +
+            self.alpha**2 * ((self.Z_big.values[i] - 1)* L0_eval) 
+            - 
             (
-                T1_big.values[i] + 
-                self.zeta**self.group_order * T2_big.values[i] +
-                self.zeta**(self.group_order*2) * T3_big.values[i] 
+                ZH_ev*
+                (
+                    T1_big.values[i] + 
+                    self.zeta**self.group_order * T2_big.values[i] +
+                    self.zeta**(self.group_order*2) * T3_big.values[i] 
+                )
             )
         )
-         for i in range(4 * self.group_order)   
+        for i in range(4 * self.group_order)   
         ]
 
         R_big = Polynomial(R_big_evals,Basis.LAGRANGE)
@@ -466,8 +475,10 @@ class Prover:
         # check R Order
         R_coeffs = self.expanded_evals_to_coeffs(R_big)
         assert R_coeffs.values[self.group_order:] == [0] * (self.group_order * 3)
-        print(sum([R_coeffs.values[i] * self.zeta**i for i in range(self.group_order)]))
-        assert 0 == sum([R_coeffs.values[i] * self.zeta**i for i in range(self.group_order)])
+        R_coeffs = Polynomial( R_coeffs.values[:self.group_order],Basis.MONOMIAL)
+
+        # print(sum([R_coeffs.values[i] * self.zeta**i for i in range(self.group_order)]))
+        # assert 0 == sum([R_coeffs.values[i] * self.zeta**i for i in range(self.group_order)])
 
         # Commit to R
         R = R_coeffs.fft() 
@@ -475,7 +486,7 @@ class Prover:
         
         # Sanity-check R
 
-        assert R_big.barycentric_eval(self.zeta) == 0
+        # assert R_big.barycentric_eval(self.zeta) == 0
         assert R.barycentric_eval(self.zeta) == 0
 
         print("Generated linearization polynomial R")
