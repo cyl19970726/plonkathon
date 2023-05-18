@@ -165,10 +165,12 @@ class Polynomial:
     def to_coset_extended_lagrange(self, offset):
         assert self.basis == Basis.LAGRANGE
         group_order = len(self.values)
-        x_powers = self.ifft().values
+        x_powers = self.ifft().values # evaltions => coefficients
+        # x_横坐标 x 系数 = y , 后面补上3 order 的0，以便下个操作执行fft()
         x_powers = [(offset**i * x) for i, x in enumerate(x_powers)] + [Scalar(0)] * (
             group_order * 3
         )
+        # coefficients => evalutions
         return Polynomial(x_powers, Basis.MONOMIAL).fft()
 
     # Convert from offset form into coefficients
@@ -178,10 +180,10 @@ class Polynomial:
     def coset_extended_lagrange_to_coeffs(self, offset):
         assert self.basis == Basis.LAGRANGE
 
-        shifted_coeffs = self.ifft().values
+        shifted_coeffs = self.ifft().values  # evalution => coefficients
         inv_offset = 1 / offset
         return Polynomial(
-            [v * inv_offset**i for (i, v) in enumerate(shifted_coeffs)],
+            [v * inv_offset**i for (i, v) in enumerate(shifted_coeffs)], # [w^0 * 1/offset ,w^1 * 1/offset^1, w^2 * 1/offset^2, ... ,w^n * 1/offset^n]
             Basis.MONOMIAL,
         )
 

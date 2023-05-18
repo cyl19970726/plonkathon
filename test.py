@@ -10,6 +10,21 @@ import json
 from test.mini_poseidon import rc, mds, poseidon_hash
 from utils import *
 
+def poly_test():
+    print("=====poly_test=====")
+    langrange_poly = Polynomial(
+        list(map(Scalar,[1,2,3,4,5,6,7,8])),Basis.LAGRANGE)
+    print(f"evalutions:{langrange_poly.values}")
+    print(langrange_poly.values.__len__())
+    coeff_poly = langrange_poly.evals_to_coeffs()
+    print(f"coefficients:{coeff_poly.values}")
+    print(coeff_poly.values.__len__())
+
+    print("======expand ploy test=======")
+    expand_poly = langrange_poly.to_coset_extended_lagrange(Scalar(1))
+    print(f"expands:{expand_poly.values}")
+    print(expand_poly.values.__len__())
+
 
 def setup_test():
     print("===setup_test===")
@@ -260,6 +275,7 @@ def poseidon_test(setup):
 
 
 if __name__ == "__main__":
+    # poly_test()
     # Step 1: Pass setup test
     setup_test()
 
